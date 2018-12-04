@@ -1,86 +1,127 @@
-# A Quick Implementation of UPGMA (Unweighted Pair Group Method with Arithmetic Mean)
+from tkinter import filedialog
+from tkinter import *
+import numpy as np
+import re
+root = Tk()
+root.title("UPGMA")
+matrix_filepath = ""
+T = Text(root, height=30, width=180)
+def select():
+	root.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("text files","*.txt"),("all files","*.*")))
+	global matrix_filepath
+	matrix_filepath = root.filename
+	generate()
 
-# lowest_cell:
-#   Locates the smallest cell in the table
-def lowest_cell(table):
-    # Set default to infinity
-    min_cell = float("inf")
-    x, y = -1, -1
+def generate():
+	(name, label, matrix) = read_matrix()
 
-    # Go through every cell, looking for the lowest
-    for i in range(len(table)):
-        for j in range(len(table[i])):
-            if table[i][j] < min_cell:
-                min_cell = table[i][j]
-                x, y = i, j
-
-    # Return the x, y co-ordinate of cell
-    return x, y
+	for i in range(len(name)):
+		res = ""
+		res += name[i]
+		formatted_m = format_matrix(matrix[i])
+		res += "\n"
+		res += UPGMA(formatted_m, label[i])
+		res += "\n\n\n\n"
+		T.insert(END, res)
 
 
-# join_labels:
-#   Combines two labels in a list of labels
+#generates table
+def read_matrix():
+	with open(matrix_filepath, "r") as f:
+		lines = f.readlines()
+		matrix_name = ""
+		name_pattern = re.compile('\[.*\]')
+		col_number = re.compile('\d')
+		data_pattern = re.compile('\*\S*')
+		entry_pattern = re.compile('-?\d\.\d\d\d\d')
+		all_tables = []
+		all_labels = []
+		all_names = []
+		labels = []
+		table_ref = []
+		current_index = 0
+		col_i = 0
+		row_i = 0
+		first_loop = True
+		for line in lines:
+			name = re.search(name_pattern, line)
+			col = re.search(col_number, line)
+			data = re.match(data_pattern,line)
+			entry_val = re.findall(entry_pattern, line) #gets the whole row
+			if name:
+				matrix_name = name.group(0)
+				rows = int(col.group(0))
+				table_ref = [[0 for y in range(rows)] for x in range(rows)]
+				all_names.append(matrix_name)
+				all_tables.append(table_ref)
+				all_labels.append(labels)
+				del labels[:]
+			if data:
+				labels.append(data.group(0))
+			if entry_val:
+				for vals in entry_val:
+					table_ref[col_i][row_i] = float(vals)
+					col_i+= 1
+				row_i+= 1;
+				if row_i >= rows:
+					row_i = 0;
+				if col_i >= rows:
+					col_i = 0;
+		return (all_names, all_labels, all_tables)
+
+def format_matrix(table):
+	proper_matrix = np.tril(table)
+	res = [[]for x in range(len(proper_matrix))]
+	for x in range(len(proper_matrix)):
+		res[x].extend(proper_matrix[x][0:x].tolist())
+	return res
+
+#returns index with the smallest min val.
+def min_val_cluster(table):
+	min_cell = float("inf");
+	x, y = -1,-1
+
+	for i in range(len(table)):
+		for j in range(len(table[i])):
+			if table[i][j] < min_cell:
+				min_cell = table[i][j]
+				x, y = i, j
+	return x,y
+
+
 def join_labels(labels, a, b):
-    # Swap if the indices are not ordered
-    if b < a:
-        a, b = b, a
+	if b < a:
+		a, b = b, a
+		labels[a] = "(" + labels[a] + "," + labels[b] + ")"
+		del labels[b]
 
-    # Join the labels in the first index
-    labels[a] = "(" + labels[a] + "," + labels[b] + ")"
-
-    # Remove the (now redundant) label in the second index
-    del labels[b]
-
-
-# join_table:
-#   Joins the entries of a table on the cell (a, b) by averaging their data entries
 def join_table(table, a, b):
-    # Swap if the indices are not ordered
-    if b < a:
-        a, b = b, a
+	if b < a:
+		a, b = b, a
+	row = []
+	for i in range(0, a):
+		row.append((table[a][i] + table[b][i])/2)
+	table[a] = row
+	for i in range(a+1, b):
+		table[i][a] = (table[i][a] + table[b][i])/2
+	for i in range(b+1, len(table)):
+		table[i][a] = (table[i][a] + table[i][b]/2)
+		del table[i][b]
+		#np.delete(table[i],b)
+	del table[b]
+	#np.delete(table,b)
 
-    # For the lower index, reconstruct the entire row (A, i), where i < A
-    row = []
-    for i in range(0, a):
-        row.append((table[a][i] + table[b][i])/2)
-    table[a] = row
-    
-    # Then, reconstruct the entire column (i, A), where i > A
-    #   Note: Since the matrix is lower triangular, row b only contains values for indices < b
-    for i in range(a+1, b):
-        table[i][a] = (table[i][a]+table[b][i])/2
-        
-    #   We get the rest of the values from row i
-    for i in range(b+1, len(table)):
-        table[i][a] = (table[i][a]+table[i][b])/2
-        # Remove the (now redundant) second index column entry
-        del table[i][b]
-
-    # Remove the (now redundant) second index row
-    del table[b]
-
-
-# UPGMA:
-#   Runs the UPGMA algorithm on a labelled table
 def UPGMA(table, labels):
-    # Until all labels have been joined...
-    while len(labels) > 1:
-        # Locate lowest cell in the table
-        x, y = lowest_cell(table)
+	while len(labels) > 1:
+		x, y = min_val_cluster(table)
 
-        # Join the table on the cell co-ordinates
-        join_table(table, x, y)
+		join_table(table, x, y)
 
-        # Update the labels accordingly
-        join_labels(labels, x, y)
+		join_labels(labels, x, y)
 
-    # Return the final label
-    return labels[0]
+	return labels[0]
 
-
-
-## A test using an example calculation from http://www.nmsr.org/upgma.htm
-
+'''
 # alpha_labels:
 #   Makes labels from a starting letter to an ending letter
 def alpha_labels(start, end):
@@ -101,4 +142,21 @@ M = [
     [13, 13, 29, 14, 28, 12]    #G
     ]
 
-# UPGMA(M, M_labels) should output: '((((A,D),((B,F),G)),C),E)'
+KIMURA_labels = ["BK001410.1","AY350716.1","AY350722.1","AY350721.1",
+"AY350720.1","AY350719.1","AY350717.1","AY350718.1"]
+KIMURA_M = [
+			[],
+			[0.0858],
+			[0.0117, 0.0713],
+			[0.0117, 0.0713, 0.0000],
+			[0.0117, 0.0713, 0.0000, 0.0000],
+			[0.0117, 0.0713, 0.0000, 0.0000, 0.0000],
+			[0.0235, 0.0591, 0.0114, 0.0114, 0.0114, 0.0114],
+			[0.0235, 0.0591, 0.0114, 0.0114, 0.0114, 0.0114, 0.0000]]
+print(UPGMA(M, M_labels))
+print(UPGMA(KIMURA_M, KIMURA_labels))
+'''
+T.pack()
+B = Button(root, width = 30, height = 30, text="select file", command=select)
+B.pack()
+mainloop()
