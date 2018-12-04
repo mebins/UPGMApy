@@ -3,7 +3,7 @@ from tkinter import *
 import numpy as np
 import re
 root = Tk()
-root.title("UPGMA")
+root.title("UPGMA SJSU 2018 by Esmeralda and Mebin")
 matrix_filepath = ""
 T = Text(root, height=30, width=180)
 def select():
